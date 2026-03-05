@@ -94,10 +94,10 @@ Download and install these (in order):
 
 | Role    | Email              | Password |
 |---------|--------------------|----------|
-| Admin   | admin@exam.edu     | password |
-| Faculty | priya@exam.edu     | password |
-| Faculty | rahul@exam.edu     | password |
-| Faculty | anita@exam.edu     | password |
+| Admin   | admin@exam.edu     | password123 |
+| Faculty | priya@exam.edu     | password123 |
+| Faculty | rahul@exam.edu     | password123 |
+| Faculty | anita@exam.edu     | password123 |
 
 > Note: The seed data uses bcrypt hashed passwords. If login fails, go to phpMyAdmin → users table → update password with a fresh hash.
 > Generate hash at: https://bcrypt.online/ (use "password" as input, cost 10)
