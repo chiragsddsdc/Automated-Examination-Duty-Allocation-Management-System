@@ -1,169 +1,189 @@
-# ExamDuty — Automated Examination Duty Allocation System
-### Final Year Project Setup Guide
+# 📋 Automated Examination Duty Allocation & Management System
+
+<div align="center">
+
+![React](https://img.shields.io/badge/React-18.2.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![PHP](https://img.shields.io/badge/PHP-8.0-777BB4?style=for-the-badge&logo=php&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![XAMPP](https://img.shields.io/badge/XAMPP-3.3.0-FB7A24?style=for-the-badge&logo=xampp&logoColor=white)
+
+**A full-stack web application that automates the allocation of examination duties to faculty members using a smart constraint-based algorithm.**
+
+*Final Year Project — Computer Science Engineering*
+
+</div>
 
 ---
 
-## What's in this project?
+## 🎯 Problem Statement
+
+In educational institutions, allocating examination duties (invigilation, supervision, flying squad, evaluation) to faculty members is a time-consuming, error-prone, and often biased manual process. This system automates the entire process — ensuring fair, transparent, and conflict-free duty allocation in seconds.
+
+---
+
+## ✨ Key Features
+
+### 👨‍💼 Admin Portal
+- 📊 **Dashboard** — Real-time stats with department-wise workload charts
+- 👥 **Faculty Management** — Add, edit, deactivate faculty members
+- 📅 **Exam Schedule Management** — Create and manage exam timetables
+- ⚡ **Auto Allocation** — One-click smart duty assignment
+- 📋 **Allocation Management** — View, edit, and track all duty assignments
+- 📄 **Reports** — Print-ready duty slips and CSV export
+- 🔔 **Notifications** — Real-time duty alerts to faculty
+
+### 🎓 Faculty Portal
+- 📊 **Personal Dashboard** — View upcoming duties and stats
+- 📋 **My Duties** — Complete duty history with status tracking
+- 📅 **Availability** — Mark unavailable dates to avoid conflicts
+- 🔔 **Notifications** — Instant alerts when duties are assigned
+
+---
+
+## ⚡ The Allocation Algorithm
+
+The core of this system uses a **Weighted Round-Robin Algorithm with Constraint Checking**:
+
+```
+Step 1 → Sort faculty by current workload (least duties first)
+Step 2 → For each exam slot, check constraints:
+         ✗ Skip if faculty belongs to same department as exam
+         ✗ Skip if faculty has a time conflict on that date
+         ✗ Skip if faculty has reached max duties for the week
+         ✗ Skip if faculty marked themselves as unavailable
+Step 3 → Assign duty with rotating duty types
+         (Invigilation → Supervision → Flying Squad → Evaluation)
+Step 4 → Send notification to assigned faculty automatically
+Step 5 → Repeat until all exam slots are filled
+```
+
+This ensures **fair workload distribution** across all faculty members while respecting all institutional constraints.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | React 18 + React Router v6 | Single Page Application |
+| Styling | Custom CSS | Dark theme UI |
+| Charts | Recharts | Dashboard visualizations |
+| Backend | PHP 8 (REST APIs) | Server-side logic |
+| Database | MySQL | Data storage |
+| Auth | Token-based (bcrypt) | Secure login system |
+| Reports | Browser Print + CSV | Duty slip generation |
+| Server | XAMPP (Apache) | Local development |
+
+---
+
+## 📁 Project Structure
 
 ```
 project/
-├── backend/                ← PHP backend (goes into XAMPP)
+├── backend/                    ← PHP REST API
 │   ├── api/
-│   │   ├── auth.php        ← Login / Logout / Session
-│   │   ├── faculty.php     ← Faculty CRUD
-│   │   ├── schedules.php   ← Exam schedule CRUD
-│   │   ├── allocate.php    ← ⚡ Core allocation algorithm
-│   │   ├── availability.php← Faculty availability
-│   │   ├── notifications.php
-│   │   └── dashboard.php   ← Dashboard stats
+│   │   ├── auth.php            ← Login / Logout / Token auth
+│   │   ├── faculty.php         ← Faculty CRUD operations
+│   │   ├── schedules.php       ← Exam schedule management
+│   │   ├── allocate.php        ← ⚡ Core allocation algorithm
+│   │   ├── availability.php    ← Faculty availability management
+│   │   ├── notifications.php   ← Notification system
+│   │   └── dashboard.php       ← Dashboard statistics
 │   ├── config/
-│   │   ├── db.php          ← Database connection
-│   │   └── cors.php        ← CORS + helper functions
-│   └── database.sql        ← Complete database with seed data
+│   │   ├── db.php              ← Database connection
+│   │   └── cors.php            ← CORS + Auth middleware
+│   └── database.sql            ← Complete schema + seed data
 │
-└── frontend/               ← React frontend
-    ├── src/
-    │   ├── pages/
-    │   │   ├── Login.js
-    │   │   ├── admin/      ← Admin pages (Dashboard, Faculty, Schedules, Allocation, Reports)
-    │   │   └── faculty/    ← Faculty pages (Dashboard, Duties, Availability, Notifications)
-    │   ├── components/     ← Layouts (sidebar navigation)
-    │   ├── context/        ← Auth state management
-    │   └── utils/api.js    ← All API calls
-    └── package.json
+└── frontend/                   ← React Application
+    └── src/
+        ├── pages/
+        │   ├── Login.js
+        │   ├── admin/          ← Admin dashboard pages
+        │   └── faculty/        ← Faculty dashboard pages
+        ├── components/         ← Shared layout components
+        ├── context/            ← Auth state management
+        └── utils/api.js        ← Centralized API calls
 ```
 
 ---
 
-## Step-by-Step Setup
+## 🚀 Getting Started
 
-### Step 1 — Install Required Software
+### Prerequisites
+- [XAMPP](https://apachefriends.org) (Apache + MySQL)
+- [Node.js](https://nodejs.org) (LTS version)
+- [Git](https://git-scm.com)
 
-Download and install these (in order):
+### Installation
 
-1. **XAMPP** → https://apachefriends.org (Choose Windows/Mac/Linux version)
-2. **Node.js** → https://nodejs.org (Download the LTS version)
-3. **VS Code** → https://code.visualstudio.com
+**1. Clone the repository**
+```bash
+git clone https://github.com/chiragsddsdc/Automated-Examination-Duty-Allocation-Management-System.git
+cd Automated-Examination-Duty-Allocation-Management-System
+```
 
-### Step 2 — Set Up the Backend (PHP)
+**2. Set up the Backend**
+```bash
+# Copy backend folder to XAMPP
+# Windows: C:\xampp\htdocs\exam-duty\
+# Mac: /Applications/XAMPP/htdocs/exam-duty/
+```
 
-1. Open the XAMPP folder on your computer:
-   - Windows: `C:\xampp\htdocs\`
-   - Mac: `/Applications/XAMPP/htdocs/`
+- Open XAMPP Control Panel → Start **Apache** and **MySQL**
+- Go to `http://localhost/phpmyadmin`
+- Create database: `exam_duty_db`
+- Import `backend/database.sql`
 
-2. Create a new folder called `exam-duty` inside htdocs
+**3. Set up the Frontend**
+```bash
+cd frontend
+npm install
+npm start
+```
 
-3. Copy the entire `backend/` folder into `htdocs/exam-duty/`
-   - Final path should be: `htdocs/exam-duty/backend/`
-
-4. Open XAMPP Control Panel → Start **Apache** and **MySQL**
-
-5. Open your browser → Go to: `http://localhost/phpmyadmin`
-
-6. Click **New** (left sidebar) → Create database named: `exam_duty_db`
-
-7. Click on `exam_duty_db` → Click **Import** tab → Choose file: `backend/database.sql` → Click **Go**
-
-   ✅ Database is ready with sample data!
-
-### Step 3 — Set Up the Frontend (React)
-
-1. Open a terminal (Command Prompt / Terminal)
-
-2. Navigate to the frontend folder:
-   ```
-   cd path/to/project/frontend
-   ```
-
-3. Install all dependencies:
-   ```
-   npm install
-   ```
-   (This takes 2-3 minutes the first time)
-
-4. Start the React app:
-   ```
-   npm start
-   ```
-
-5. Browser opens automatically at: `http://localhost:3000`
+- App opens at `http://localhost:3000`
 
 ---
 
-## Login Credentials
+## 🔐 Demo Login Credentials
 
-| Role    | Email              | Password |
-|---------|--------------------|----------|
-| Admin   | admin@exam.edu     | password123 |
-| Faculty | priya@exam.edu     | password123 |
-| Faculty | rahul@exam.edu     | password123 |
-| Faculty | anita@exam.edu     | password123 |
-
-> Note: The seed data uses bcrypt hashed passwords. If login fails, go to phpMyAdmin → users table → update password with a fresh hash.
-> Generate hash at: https://bcrypt.online/ (use "password" as input, cost 10)
-
----
-
-## How to Use the System
-
-### Admin Workflow:
-1. Login as Admin
-2. Go to **Faculty** → Add faculty members
-3. Go to **Exam Schedules** → Create exam timetables
-4. Go to **Run Allocation** → Click "Run Allocation" button
-5. The algorithm auto-assigns duties to eligible faculty
-6. Go to **Allocations** → View/edit/manage all assignments
-7. Go to **Reports** → Print or export duty slips
-
-### Faculty Workflow:
-1. Login as Faculty
-2. Go to **Availability** → Mark any dates you can't attend
-3. Go to **My Duties** → See duties assigned to you
-4. Check **Notifications** for duty alerts
+| Role | Email | Password |
+|------|-------|----------|
+| 👨‍💼 Admin | admin@exam.edu | password123 |
+| 🎓 Faculty | priya@exam.edu | password123 |
+| 🎓 Faculty | rahul@exam.edu | password123 |
+| 🎓 Faculty | anita@exam.edu | password123 |
+| 🎓 Faculty | suresh@exam.edu | password123 |
+| 🎓 Faculty | meena@exam.edu | password123 |
 
 ---
 
-## Algorithm Explanation (for viva)
+## 🔮 Future Enhancements
 
-The allocation uses **Weighted Round-Robin with Constraint Checking**:
-
-1. **Sort faculty** by workload (least-loaded first) for fair distribution
-2. **Check Constraint 1**: Faculty cannot invigilate their own department's exam
-3. **Check Constraint 2**: No time conflicts (cannot be double-booked)
-4. **Check Constraint 3**: Respect max duties per week per faculty
-5. **Check Constraint 4**: Skip faculty marked as unavailable
-6. **Assign duty** with rotating duty types (invigilation → supervision → flying squad → evaluation)
-7. **Send notification** to assigned faculty automatically
+- [ ] 📧 Email notifications via PHPMailer + Gmail SMTP
+- [ ] 📱 SMS alerts via Twilio API
+- [ ] 🔑 Faculty password change feature
+- [ ] 📊 Advanced analytics and workload reports
+- [ ] 📱 Mobile responsive design
+- [ ] ☁️ Cloud deployment (AWS / Hostinger)
+- [ ] 🔄 Automatic exam schedule import from Excel
 
 ---
 
-## Tech Stack
+## 🧑‍💻 Author
 
-| Layer     | Technology |
-|-----------|-----------|
-| Frontend  | React 18, React Router v6 |
-| Styling   | Custom CSS (no external UI library) |
-| Charts    | Recharts |
-| Backend   | PHP 8 (REST APIs) |
-| Database  | MySQL (via XAMPP) |
-| Reports   | Browser Print + CSV Export |
-| Auth      | PHP Sessions + bcrypt |
+**Chirag Yadav**
+- GitHub: [@chiragsddsdc](https://github.com/chiragsddsdc)
 
 ---
 
-## Troubleshooting
+## 📄 License
 
-**"Failed to fetch" or network errors:**
-- Make sure XAMPP Apache and MySQL are running
-- Check the API URL in `frontend/src/utils/api.js` matches your XAMPP path
+This project is built as a Final Year Project for academic purposes.
 
-**Login not working:**
-- Check phpMyAdmin that the `exam_duty_db` database was imported
-- Try regenerating password hash at bcrypt.online
+---
 
-**npm install fails:**
-- Make sure Node.js is installed: run `node --version` in terminal
-- Try: `npm install --legacy-peer-deps`
-
-**CORS errors:**
-- Check `backend/config/cors.php` — the origin should be `http://localhost:3000`
+<div align="center">
+  <p>⭐ Star this repo if you found it helpful!</p>
+  <p>Made with ❤️ for Final Year Project</p>
+</div>
