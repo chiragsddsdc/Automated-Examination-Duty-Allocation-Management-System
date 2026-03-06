@@ -1,15 +1,55 @@
 <?php
-// backend/api/allocate.php
-// ============================================================
-// CORE ALLOCATION ALGORITHM
-// Strategy: Weighted Round-Robin with Constraint Checking
-// ============================================================
+/**
+ * ============================================================
+ * CORE DUTY ALLOCATION ALGORITHM
+ * ============================================================
+ * 
+ * This is the most important file in the entire system.
+ * It implements the automated duty allocation algorithm that
+ * assigns exam duties to faculty members fairly and efficiently.
+ * 
+ * ALGORITHM: Weighted Round-Robin with Constraint Checking
+ * ─────────────────────────────────────────────────────────
+ * 
+ * Step 1: Fetch all exam slots that need duties filled
+ * Step 2: Fetch all active faculty sorted by workload (least first)
+ * Step 3: For each exam, loop through faculty and check 4 constraints:
+ *         CONSTRAINT 1 → Faculty cannot invigilate their own dept's exam
+ *         CONSTRAINT 2 → No time conflicts (cannot be double-booked)
+ *         CONSTRAINT 3 → Max duties per week limit respected
+ *         CONSTRAINT 4 → Skip if faculty marked themselves unavailable
+ * Step 4: If all constraints pass → assign duty
+ * Step 5: Rotate duty types (Invigilation → Supervision → Flying Squad → Evaluation)
+ * Step 6: Send notification to assigned faculty
+ * Step 7: Repeat until all exam slots are filled
+ * 
+ * WHY WEIGHTED ROUND-ROBIN?
+ * Regular round-robin assigns duties in strict rotation regardless of
+ * who already has more duties. Weighted round-robin first sorts faculty
+ * by current workload so the least-loaded faculty always get priority.
+ * This ensures FAIR distribution across all faculty members.
+ * 
+ * ENDPOINTS:
+ * GET    /allocate.php              → View all allocations
+ * GET    /allocate.php?faculty_id=X → View specific faculty's duties
+ * GET    /allocate.php?exam_id=X    → View duties for specific exam
+ * POST   /allocate.php              → Run allocation algorithm (Admin only)
+ * PUT    /allocate.php              → Update allocation status (Admin only)
+ * DELETE /allocate.php?id=X        → Remove an allocation (Admin only)
+ * 
+ * @author  Chirag Yadav
+ * @project Automated Examination Duty Allocation System
+ * ============================================================
+ */
+
 require_once '../config/cors.php';
 require_once '../config/db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Allow faculty to GET allocations, but only admins can POST/PUT/DELETE
+// Access control:
+// GET requests → any logged-in user (faculty can view their own duties)
+// POST/PUT/DELETE → admin only (only admin can run/modify allocation)
 if ($method === 'GET') {
     $user = requireAuth();
 } else {
@@ -18,27 +58,44 @@ if ($method === 'GET') {
 
 $db = getDB();
 
-// GET all allocations
+// ── GET ALLOCATIONS ───────────────────────────────────────────
 if ($method === 'GET') {
-    $exam_id = intval($_GET['exam_id'] ?? 0);
+    
+    // Optional filters from URL parameters
+    $exam_id    = intval($_GET['exam_id'] ?? 0);
     $faculty_id = intval($_GET['faculty_id'] ?? 0);
 
-    // If faculty is logged in, only show their own duties
+    // IMPORTANT: If faculty is viewing, automatically filter to their duties only
+    // Faculty should NOT see other faculty members' duty assignments
     if ($user['role'] === 'faculty') {
+        // Get faculty profile ID from user ID
         $stmt = $db->prepare('SELECT fp.id FROM faculty_profiles fp WHERE fp.user_id = ?');
         $stmt->bind_param('i', $user['id']);
         $stmt->execute();
         $fp = $stmt->get_result()->fetch_assoc();
-        if ($fp) $faculty_id = $fp['id'];
+        if ($fp) $faculty_id = $fp['id']; // Force filter to their own duties
     }
 
-    $where = '1=1';
+    // Build dynamic WHERE clause based on provided filters
+    $where = '1=1'; // Default: no filter (get all)
     $params = [];
     $types = '';
 
-    if ($exam_id) { $where .= ' AND da.exam_id = ?'; $params[] = $exam_id; $types .= 'i'; }
-    if ($faculty_id) { $where .= ' AND da.faculty_id = ?'; $params[] = $faculty_id; $types .= 'i'; }
+    // Add exam filter if provided
+    if ($exam_id) { 
+        $where .= ' AND da.exam_id = ?'; 
+        $params[] = $exam_id; 
+        $types .= 'i'; 
+    }
+    
+    // Add faculty filter if provided (or auto-set for faculty role)
+    if ($faculty_id) { 
+        $where .= ' AND da.faculty_id = ?'; 
+        $params[] = $faculty_id; 
+        $types .= 'i'; 
+    }
 
+    // Fetch allocations with all related details using JOINs
     $stmt = $db->prepare("SELECT da.*, 
                           u.name as faculty_name, fp.department as faculty_dept, fp.employee_id,
                           es.subject_name, es.exam_date, es.start_time, es.end_time, es.venue, es.department as exam_dept,
@@ -50,6 +107,8 @@ if ($method === 'GET') {
                           JOIN duty_types dt ON dt.id = da.duty_type_id
                           WHERE $where
                           ORDER BY es.exam_date, es.start_time");
+    
+    // Bind parameters only if we have filters
     if ($types) {
         $stmt->bind_param($types, ...$params);
     }
@@ -57,18 +116,21 @@ if ($method === 'GET') {
     respond($stmt->get_result()->fetch_all(MYSQLI_ASSOC));
 }
 
-// POST - Run allocation algorithm
+// ── RUN ALLOCATION ALGORITHM ──────────────────────────────────
 elseif ($method === 'POST') {
+    
     $body = getBody();
-    $exam_ids = $body['exam_ids'] ?? []; // specific exams, or empty = all unallocated
-    $overwrite = $body['overwrite'] ?? false;
+    $exam_ids = $body['exam_ids'] ?? [];    // Specific exam IDs to allocate (empty = all)
+    $overwrite = $body['overwrite'] ?? false; // If true, redo already-allocated exams
 
-    // Fetch exams to allocate
+    // ── STEP 1: Fetch exams to process ──────────────────────
     if (!empty($exam_ids)) {
+        // Allocate only the selected exams
         $placeholders = implode(',', array_fill(0, count($exam_ids), '?'));
         $stmt = $db->prepare("SELECT * FROM exam_schedules WHERE id IN ($placeholders) AND status != 'cancelled'");
         $stmt->bind_param(str_repeat('i', count($exam_ids)), ...$exam_ids);
     } else {
+        // Allocate ALL scheduled exams that haven't been cancelled
         $stmt = $db->prepare("SELECT * FROM exam_schedules WHERE status = 'scheduled' ORDER BY exam_date, start_time");
     }
     $stmt->execute();
@@ -76,7 +138,9 @@ elseif ($method === 'POST') {
 
     if (empty($exams)) respondError('No exams found to allocate');
 
-    // Fetch all active faculty with their workload counts
+    // ── STEP 2: Fetch all active faculty with workload data ──
+    // Sort by current_duties ASC so least-loaded faculty come first
+    // This is the "weighted" part of Weighted Round-Robin
     $facultyResult = $db->query("SELECT fp.id, fp.department, fp.experience_years, fp.max_duties_per_week,
                                   u.name, u.id as user_id,
                                   COUNT(da.id) as current_duties
@@ -90,142 +154,178 @@ elseif ($method === 'POST') {
 
     if (empty($allFaculty)) respondError('No active faculty found');
 
-    // Fetch all duty types
+    // Fetch duty types (Invigilation, Supervision, Flying Squad, Evaluation)
     $dutyTypes = $db->query('SELECT * FROM duty_types ORDER BY weight DESC')->fetch_all(MYSQLI_ASSOC);
 
-    $allocated = [];
-    $skipped = [];
-    $errors = [];
+    // Track results for the response
+    $allocated = []; // Successfully allocated exams
+    $skipped   = []; // Skipped (already allocated and overwrite=false)
+    $errors    = []; // Failed allocations (not enough eligible faculty)
 
+    // ── STEP 3: Process each exam ────────────────────────────
     foreach ($exams as $exam) {
-        // Skip if already allocated and not overwriting
+        
+        // Check if exam already has enough duties allocated
         if (!$overwrite) {
             $stmt = $db->prepare('SELECT COUNT(*) as cnt FROM duty_allocations WHERE exam_id = ?');
             $stmt->bind_param('i', $exam['id']);
             $stmt->execute();
             $existing = $stmt->get_result()->fetch_assoc();
+            
+            // Skip this exam if already fully allocated
             if ($existing['cnt'] >= $exam['duties_required']) {
                 $skipped[] = $exam['subject_name'];
-                continue;
+                continue; // Move to next exam
             }
         } else {
-            // Delete existing allocations for this exam
+            // Overwrite mode: delete all existing allocations for this exam first
             $stmt = $db->prepare('DELETE FROM duty_allocations WHERE exam_id = ?');
             $stmt->bind_param('i', $exam['id']);
             $stmt->execute();
         }
 
-        $assignedCount = 0;
-        $assigned_faculty_ids = [];
-        $dutyTypeIndex = 0;
+        $assignedCount    = 0;  // How many duties assigned for this exam so far
+        $dutyTypeIndex    = 0;  // Index to rotate through duty types
 
-        // Sort faculty by workload (least duties first) - fair distribution
+        // Re-sort faculty by workload before each exam for fairness
         usort($allFaculty, function($a, $b) {
             return $a['current_duties'] - $b['current_duties'];
         });
 
+        // ── STEP 4: Try to assign each required duty ─────────
         foreach ($allFaculty as &$faculty) {
+            
+            // Stop if we've filled all required duties for this exam
             if ($assignedCount >= $exam['duties_required']) break;
 
-            // CONSTRAINT 1: Don't assign faculty to their own department's exam
+            // ── CONSTRAINT 1: Department Check ────────────────
+            // Faculty cannot invigilate their own department's exam
+            // Reason: They may know students personally, creating bias
             if ($faculty['department'] === $exam['department']) continue;
 
-            // CONSTRAINT 2: Check if faculty already assigned to another exam at same time
+            // ── CONSTRAINT 2: Time Conflict Check ─────────────
+            // Faculty cannot be assigned two duties at the same time
+            // Checks if faculty already has a duty that overlaps with this exam's time
             $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM duty_allocations da
                                   JOIN exam_schedules es ON es.id = da.exam_id
                                   WHERE da.faculty_id = ? AND es.exam_date = ?
-                                  AND ((es.start_time <= ? AND es.end_time >= ?) OR (es.start_time <= ? AND es.end_time >= ?))");
-            $stmt->bind_param('isssss', $faculty['id'], $exam['exam_date'], 
-                              $exam['start_time'], $exam['start_time'],
-                              $exam['end_time'], $exam['end_time']);
+                                  AND ((es.start_time <= ? AND es.end_time >= ?) 
+                                  OR (es.start_time <= ? AND es.end_time >= ?))");
+            $stmt->bind_param('isssss', 
+                $faculty['id'], $exam['exam_date'], 
+                $exam['start_time'], $exam['start_time'],
+                $exam['end_time'], $exam['end_time']
+            );
             $stmt->execute();
             $conflict = $stmt->get_result()->fetch_assoc();
-            if ($conflict['cnt'] > 0) continue;
+            if ($conflict['cnt'] > 0) continue; // Skip: time conflict
 
-            // CONSTRAINT 3: Check max weekly duties
+            // ── CONSTRAINT 3: Weekly Duty Limit Check ─────────
+            // Faculty cannot exceed their maximum duties per week
+            // Each faculty member has a configurable max (usually 5/week)
             $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM duty_allocations da
                                   JOIN exam_schedules es ON es.id = da.exam_id
                                   WHERE da.faculty_id = ? AND WEEK(es.exam_date) = WEEK(?)");
             $stmt->bind_param('is', $faculty['id'], $exam['exam_date']);
             $stmt->execute();
             $weeklyDuties = $stmt->get_result()->fetch_assoc();
-            if ($weeklyDuties['cnt'] >= $faculty['max_duties_per_week']) continue;
+            if ($weeklyDuties['cnt'] >= $faculty['max_duties_per_week']) continue; // Skip: limit reached
 
-            // CONSTRAINT 4: Check faculty availability (if they've marked unavailability)
+            // ── CONSTRAINT 4: Availability Check ──────────────
+            // Skip faculty who have marked themselves as unavailable on this date
+            // Faculty can mark unavailable dates from their portal
             $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM availability
                                   WHERE faculty_id = ? AND available_date = ? AND is_available = 0");
             $stmt->bind_param('is', $faculty['id'], $exam['exam_date']);
             $stmt->execute();
             $unavailable = $stmt->get_result()->fetch_assoc();
-            if ($unavailable['cnt'] > 0) continue;
+            if ($unavailable['cnt'] > 0) continue; // Skip: marked unavailable
 
-            // All constraints passed - ASSIGN DUTY
+            // ── ALL CONSTRAINTS PASSED → ASSIGN DUTY ──────────
+            // Rotate through duty types using modulo operator
+            // e.g., index 0→Invigilation, 1→Supervision, 2→Flying Squad, 3→Evaluation, 4→Invigilation...
             $dutyType = $dutyTypes[$dutyTypeIndex % count($dutyTypes)];
             $dutyTypeIndex++;
 
+            // Insert allocation record into database
             $stmt = $db->prepare('INSERT INTO duty_allocations (exam_id, faculty_id, duty_type_id) VALUES (?, ?, ?)');
             $stmt->bind_param('iii', $exam['id'], $faculty['id'], $dutyType['id']);
             $stmt->execute();
 
-            // Send notification
+            // ── STEP 5: Send notification to assigned faculty ──
             $title = "New Duty Assigned: {$exam['subject_name']}";
-            $message = "You have been assigned as {$dutyType['name']} for {$exam['subject_name']} on " . date('d M Y', strtotime($exam['exam_date'])) . " at {$exam['venue']}.";
+            $message = "You have been assigned as {$dutyType['name']} for {$exam['subject_name']} on " 
+                     . date('d M Y', strtotime($exam['exam_date'])) 
+                     . " at {$exam['venue']}.";
+            
             $stmt = $db->prepare('INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, "duty_assigned")');
             $stmt->bind_param('iss', $faculty['user_id'], $title, $message);
             $stmt->execute();
 
+            // Update faculty's duty count in memory (so next iteration is accurate)
             $faculty['current_duties']++;
-            $assigned_faculty_ids[] = $faculty['id'];
             $assignedCount++;
         }
 
+        // Track result for this exam
         if ($assignedCount > 0) {
             $allocated[] = [
-                'exam' => $exam['subject_name'],
-                'date' => $exam['exam_date'],
+                'exam'     => $exam['subject_name'],
+                'date'     => $exam['exam_date'],
                 'assigned' => $assignedCount,
                 'required' => $exam['duties_required']
             ];
         } else {
+            // No eligible faculty found for this exam
             $errors[] = "Could not allocate duties for: {$exam['subject_name']} - no eligible faculty available";
         }
     }
 
+    // ── STEP 6: Return allocation summary ─────────────────────
     respond([
-        'message' => 'Allocation complete',
+        'message'   => 'Allocation complete',
         'allocated' => $allocated,
-        'skipped' => $skipped,
-        'errors' => $errors,
-        'summary' => [
-            'total_exams' => count($exams),
-            'successfully_allocated' => count($allocated),
-            'skipped' => count($skipped),
-            'failed' => count($errors)
+        'skipped'   => $skipped,
+        'errors'    => $errors,
+        'summary'   => [
+            'total_exams'             => count($exams),
+            'successfully_allocated'  => count($allocated),
+            'skipped'                 => count($skipped),
+            'failed'                  => count($errors)
         ]
     ]);
 }
 
-// PUT - Update allocation status
+// ── UPDATE ALLOCATION STATUS ──────────────────────────────────
 elseif ($method === 'PUT') {
+    
+    // Admin can update the status of an allocation
+    // Status options: assigned, acknowledged, completed, absent
     $body = getBody();
-    $id = intval($body['id'] ?? 0);
+    $id     = intval($body['id'] ?? 0);
     $status = $body['status'] ?? '';
-    if (!$id || !$status) respondError('ID and status required');
+    
+    if (!$id || !$status) respondError('ID and status are required');
 
     $stmt = $db->prepare('UPDATE duty_allocations SET status = ? WHERE id = ?');
     $stmt->bind_param('si', $status, $id);
     $stmt->execute();
-    respond(['message' => 'Allocation updated']);
+    
+    respond(['message' => 'Allocation status updated successfully']);
 }
 
-// DELETE - Remove single allocation
+// ── DELETE ALLOCATION ─────────────────────────────────────────
 elseif ($method === 'DELETE') {
+    
+    // Admin can remove a single allocation (e.g., if faculty is sick)
     $id = intval($_GET['id'] ?? 0);
-    if (!$id) respondError('ID required');
+    if (!$id) respondError('Allocation ID is required');
+    
     $stmt = $db->prepare('DELETE FROM duty_allocations WHERE id = ?');
     $stmt->bind_param('i', $id);
     $stmt->execute();
-    respond(['message' => 'Allocation removed']);
+    
+    respond(['message' => 'Allocation removed successfully']);
 }
 
 else {
