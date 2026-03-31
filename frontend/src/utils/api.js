@@ -19,6 +19,9 @@ export const auth = {
   login: (email, password) => API.post('/auth.php?action=login', { email, password }),
   logout: () => API.post('/auth.php?action=logout'),
   me: () => API.get('/auth.php?action=me'),
+  changePassword: (old_password, new_password) => API.post('/auth.php?action=change_password', { old_password, new_password }),
+  forgotPassword: (email) => API.post('/auth.php?action=forgot_password', { email }),
+  resetPassword: (email, otp, new_password) => API.post('/auth.php?action=reset_password', { email, otp, new_password }),
 };
 
 export const faculty = {
@@ -60,6 +63,12 @@ export const notifications = {
 
 export const dashboard = {
   get: () => API.get('/dashboard.php'),
+};
+
+export const importSchedules = {
+  upload: (formData) => API.post('/import.php', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 };
 
 export default API;

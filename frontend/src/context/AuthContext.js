@@ -27,9 +27,11 @@ export function AuthProvider({ children }) {
     const res = await auth.login(email, password);
     // Save token to localStorage
     if (res.data.token) {
-      localStorage.setItem('auth_token', res.data.token);
+    localStorage.setItem("auth_token", res.data.token);
     }
+
     setUser(res.data);
+
     return res.data;
   };
 

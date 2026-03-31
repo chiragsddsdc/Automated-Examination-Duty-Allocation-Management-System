@@ -82,6 +82,17 @@ CREATE TABLE duty_allocations (
     UNIQUE KEY unique_allocation (exam_id, faculty_id)
 );
 
+-- PASSWORD RESETS (OTP-based)
+CREATE TABLE password_resets (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    email      VARCHAR(150) NOT NULL,
+    otp        VARCHAR(6)   NOT NULL,
+    expires_at DATETIME     NOT NULL,
+    used       TINYINT(1)   DEFAULT 0,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_email (email)
+);
+
 -- NOTIFICATIONS
 CREATE TABLE notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,

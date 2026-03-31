@@ -34,6 +34,12 @@
 
 require_once '../config/cors.php';
 require_once '../config/db.php';
+require_once '../config/validation.php';
+
+// Only GET is valid for the dashboard
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    respondError('Method not allowed', 405);
+}
 
 // Verify user is logged in and get their data
 $user = requireAuth();

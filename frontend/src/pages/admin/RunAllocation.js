@@ -136,7 +136,7 @@ export default function RunAllocation() {
         {result && (
           <div className={`alloc-result ${result.summary?.failed > 0 ? 'warning' : 'success'}`} style={{marginTop:'24px'}}>
             <h4>✅ Allocation Results</h4>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'12px', marginBottom:'16px'}}>
+            <div className="alloc-summary-grid">
               {[
                 ['Total Exams', result.summary.total_exams, 'var(--text-primary)'],
                 ['Successfully Allocated', result.summary.successfully_allocated, 'var(--success)'],

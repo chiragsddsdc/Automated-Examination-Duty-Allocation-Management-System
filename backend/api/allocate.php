@@ -44,6 +44,8 @@
 
 require_once '../config/cors.php';
 require_once '../config/db.php';
+require_once '../config/validation.php';
+require_once '../config/email.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -119,9 +121,23 @@ if ($method === 'GET') {
 // ── RUN ALLOCATION ALGORITHM ──────────────────────────────────
 elseif ($method === 'POST') {
     
-    $body = getBody();
-    $exam_ids = $body['exam_ids'] ?? [];    // Specific exam IDs to allocate (empty = all)
-    $overwrite = $body['overwrite'] ?? false; // If true, redo already-allocated exams
+    $body     = getBody();
+    $exam_ids = $body['exam_ids'] ?? [];
+    $overwrite = !empty($body['overwrite']) && $body['overwrite'] !== false;
+
+    // Validate exam_ids: must be an array of positive integers (or empty = all)
+    if (!empty($exam_ids)) {
+        if (!is_array($exam_ids)) {
+            respondError('exam_ids must be an array of integers');
+        }
+        // Sanitize every element to a positive integer; reject 0/negatives
+        $exam_ids = array_map('intval', $exam_ids);
+        $exam_ids = array_filter($exam_ids, fn($id) => $id > 0);
+        if (empty($exam_ids)) {
+            respondError('exam_ids contains no valid positive integer IDs');
+        }
+        $exam_ids = array_values($exam_ids); // re-index after filter
+    }
 
     // ── STEP 1: Fetch exams to process ──────────────────────
     if (!empty($exam_ids)) {
@@ -142,7 +158,7 @@ elseif ($method === 'POST') {
     // Sort by current_duties ASC so least-loaded faculty come first
     // This is the "weighted" part of Weighted Round-Robin
     $facultyResult = $db->query("SELECT fp.id, fp.department, fp.experience_years, fp.max_duties_per_week,
-                                  u.name, u.id as user_id,
+                                  u.name, u.id as user_id, u.email,
                                   COUNT(da.id) as current_duties
                                   FROM faculty_profiles fp
                                   JOIN users u ON u.id = fp.user_id
@@ -252,15 +268,28 @@ elseif ($method === 'POST') {
             $stmt->bind_param('iii', $exam['id'], $faculty['id'], $dutyType['id']);
             $stmt->execute();
 
-            // ── STEP 5: Send notification to assigned faculty ──
+            // ── STEP 5: Send in-app notification to assigned faculty ──
             $title = "New Duty Assigned: {$exam['subject_name']}";
-            $message = "You have been assigned as {$dutyType['name']} for {$exam['subject_name']} on " 
-                     . date('d M Y', strtotime($exam['exam_date'])) 
+            $message = "You have been assigned as {$dutyType['name']} for {$exam['subject_name']} on "
+                     . date('d M Y', strtotime($exam['exam_date']))
                      . " at {$exam['venue']}.";
-            
+
             $stmt = $db->prepare('INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, "duty_assigned")');
             $stmt->bind_param('iss', $faculty['user_id'], $title, $message);
             $stmt->execute();
+
+            // ── STEP 5b: Send duty assignment email to faculty ─
+            // Runs after DB insert so a failed email never blocks allocation
+            sendDutyAssignmentEmail(
+                $faculty['email'],
+                $faculty['name'],
+                $exam['subject_name'],
+                $exam['exam_date'],
+                $exam['start_time'],
+                $exam['end_time'],
+                $exam['venue'],
+                $dutyType['name']
+            );
 
             // Update faculty's duty count in memory (so next iteration is accurate)
             $faculty['current_duties']++;
@@ -301,16 +330,26 @@ elseif ($method === 'PUT') {
     
     // Admin can update the status of an allocation
     // Status options: assigned, acknowledged, completed, absent
-    $body = getBody();
-    $id     = intval($body['id'] ?? 0);
-    $status = $body['status'] ?? '';
-    
-    if (!$id || !$status) respondError('ID and status are required');
+    $body   = getBody();
+
+    if (!validatePositiveInt($body['id'] ?? 0)) {
+        respondError('Valid allocation ID is required');
+    }
+    $id     = sanitizeInt($body['id'], 1);
+    $status = sanitizeStr($body['status'] ?? '', 20);
+
+    if ($status === '' || !validateEnum($status, VALID_ALLOC_STATUSES)) {
+        respondError('Invalid status. Allowed: ' . implode(', ', VALID_ALLOC_STATUSES));
+    }
 
     $stmt = $db->prepare('UPDATE duty_allocations SET status = ? WHERE id = ?');
     $stmt->bind_param('si', $status, $id);
     $stmt->execute();
-    
+
+    if ($db->affected_rows === 0) {
+        respondError('Allocation not found', 404);
+    }
+
     respond(['message' => 'Allocation status updated successfully']);
 }
 
@@ -318,13 +357,19 @@ elseif ($method === 'PUT') {
 elseif ($method === 'DELETE') {
     
     // Admin can remove a single allocation (e.g., if faculty is sick)
-    $id = intval($_GET['id'] ?? 0);
-    if (!$id) respondError('Allocation ID is required');
-    
+    if (!validatePositiveInt($_GET['id'] ?? 0)) {
+        respondError('Valid allocation ID is required');
+    }
+    $id = sanitizeInt($_GET['id'], 1);
+
     $stmt = $db->prepare('DELETE FROM duty_allocations WHERE id = ?');
     $stmt->bind_param('i', $id);
     $stmt->execute();
-    
+
+    if ($db->affected_rows === 0) {
+        respondError('Allocation not found', 404);
+    }
+
     respond(['message' => 'Allocation removed successfully']);
 }
 

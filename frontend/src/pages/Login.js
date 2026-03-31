@@ -78,7 +78,7 @@ export default function Login() {
                 🎓 Faculty Login
               </button>
             </div>
-            <span style={{fontSize:'12px', color:'var(--text-muted)'}}>Password: password</span>
+            <span style={{fontSize:'12px', color:'var(--text-muted)'}}>Password: password123</span>
           </div>
         </div>
       </div>
@@ -111,7 +111,19 @@ export default function Login() {
         .demo-accounts { margin-top:24px; padding-top:20px; border-top:1px solid var(--border); text-align:center; }
         .demo-accounts p { font-size:12px; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px; }
         .demo-btns { display:flex; gap:8px; justify-content:center; margin-bottom:8px; }
-        @media(max-width:768px) { .login-left{display:none;} .login-right{width:100%;} }
+        @media(max-width:768px) {
+          .login-left { display:none; }
+          .login-right { width:100%; padding:32px 20px; min-height:100vh; align-items:flex-start; padding-top:48px; }
+          .login-box h2 { font-size:24px; }
+          .login-sub { margin-bottom:24px; }
+          .demo-btns { flex-wrap:wrap; }
+          .demo-btns .btn { flex:1 1 130px; justify-content:center; }
+        }
+        @media(max-width:420px) {
+          .login-right { padding:24px 16px; padding-top:36px; }
+          .demo-btns { flex-direction:column; }
+          .demo-btns .btn { width:100%; }
+        }
       `}</style>
     </div>
   );
