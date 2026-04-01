@@ -1,32 +1,37 @@
-const https = require('https');
-const http = require('http');
+const httpModule = require('http');
 
 export default async function handler(req, res) {
-  const path = req.query.path ? req.query.path.join('/') : '';
-  const queryString = new URLSearchParams(req.query);
-  queryString.delete('path');
-  
-  const targetUrl = `http://examduty.infinityfreeapp.com/backend/api/${path}?${queryString}`;
+  const pathParts = req.query.path || [];
+  const path = Array.isArray(pathParts) ? pathParts.join('/') : pathParts;
 
-  const { 'content-length': _cl, 'transfer-encoding': _te, ...forwardHeaders } = req.headers;
+  const params = new URLSearchParams();
+  Object.entries(req.query).forEach(([key, val]) => {
+    if (key !== 'path') params.append(key, val);
+  });
+
+  const targetUrl = `http://examduty.infinityfreeapp.com/backend/api/${path}?${params.toString()}`;
+
+  const body = req.method !== 'GET' && req.method !== 'HEAD'
+    ? JSON.stringify(req.body)
+    : null;
+
   const options = {
     method: req.method,
     headers: {
-      ...forwardHeaders,
-      host: 'examduty.infinityfreeapp.com',
-      'content-type': 'application/json',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}),
     },
   };
 
   return new Promise((resolve) => {
-    const proxyReq = http.request(targetUrl, options, (proxyRes) => {
-      res.status(proxyRes.statusCode);
-      Object.entries(proxyRes.headers).forEach(([key, value]) => {
-        res.setHeader(key, value);
+    const proxyReq = httpModule.request(targetUrl, options, (proxyRes) => {
+      let data = '';
+      proxyRes.on('data', chunk => data += chunk);
+      proxyRes.on('end', () => {
+        res.status(proxyRes.statusCode).json(JSON.parse(data));
+        resolve();
       });
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      proxyRes.pipe(res);
-      proxyRes.on('end', resolve);
     });
 
     proxyReq.on('error', (err) => {
@@ -34,10 +39,7 @@ export default async function handler(req, res) {
       resolve();
     });
 
-    if (req.body) {
-      const body = JSON.stringify(req.body);
-      proxyReq.write(body);
-    }
+    if (body) proxyReq.write(body);
     proxyReq.end();
   });
 }
