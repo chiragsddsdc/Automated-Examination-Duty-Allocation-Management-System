@@ -38,7 +38,8 @@ export default async function handler(req, res) {
           res.status(proxyRes.statusCode).json(JSON.parse(data));
         } catch (e) {
           console.log('[PROXY] JSON parse failed:', e.message);
-          res.status(500).json({ error: 'Invalid JSON from backend', raw: data });
+          console.log('[PROXY] Raw response (first 500 chars):', data.substring(0, 500));
+          res.status(500).json({ error: 'Backend error', raw: data.substring(0, 200) });
         }
         resolve();
       });
