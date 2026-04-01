@@ -20,6 +20,7 @@ export default async function handler(req, res) {
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      ...(req.headers.authorization ? { 'Authorization': req.headers.authorization } : {}),
       ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}),
     },
   };
