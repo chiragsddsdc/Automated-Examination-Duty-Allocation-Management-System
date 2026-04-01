@@ -8,11 +8,13 @@ export default async function handler(req, res) {
   
   const targetUrl = `http://examduty.infinityfreeapp.com/backend/api/${path}?${queryString}`;
 
+  const { 'content-length': _cl, 'transfer-encoding': _te, ...forwardHeaders } = req.headers;
   const options = {
     method: req.method,
     headers: {
-      ...req.headers,
+      ...forwardHeaders,
       host: 'examduty.infinityfreeapp.com',
+      'content-type': 'application/json',
     },
   };
 
