@@ -1,29 +1,21 @@
-const httpModule = require('https');
+const https = require('https');
 
 export default async function handler(req, res) {
-  const pathSegments = Array.isArray(req.query.path)
-    ? req.query.path
-    : req.query.path ? [req.query.path] : [];
-  const filePath = pathSegments.join('/');
+  // Get the file path from URL segments
+  const pathSegments = req.url.split('/api/')[1] || '';
 
-  const params = new URLSearchParams();
-  Object.entries(req.query).forEach(([key, val]) => {
-    if (key === 'path') return;
-    if (Array.isArray(val)) val.forEach(v => params.append(key, v));
-    else params.append(key, val);
-  });
-
-  const queryStr = params.toString();
-  const targetUrl = `https://midnightblue-woodcock-705637.hostingersite.com/backend/api/${filePath}${queryStr ? '?' + queryStr : ''}`;
-
-  const body = req.method !== 'GET' && req.method !== 'HEAD'
-    ? JSON.stringify(req.body)
-    : null;
+  // Build target URL
+  const targetUrl = `https://midnightblue-woodcock-705637.hostingersite.com/backend/api/${pathSegments}`;
 
   console.log('[PROXY] →', req.method, targetUrl);
-  console.log('[PROXY] Request body:', body);
+
+  const body = req.method !== 'GET' ? JSON.stringify(req.body) : null;
+
+  const urlObj = new URL(targetUrl);
 
   const options = {
+    hostname: urlObj.hostname,
+    path: urlObj.pathname + urlObj.search,
     method: req.method,
     headers: {
       'Content-Type': 'application/json',
@@ -33,17 +25,15 @@ export default async function handler(req, res) {
   };
 
   return new Promise((resolve) => {
-    const proxyReq = httpModule.request(targetUrl, options, (proxyRes) => {
+    const proxyReq = https.request(options, (proxyRes) => {
       let data = '';
       proxyRes.on('data', chunk => data += chunk);
       proxyRes.on('end', () => {
-        console.log('[PROXY] Response status:', proxyRes.statusCode);
-        console.log('[PROXY] Raw response:', data);
+        console.log('[PROXY] Status:', proxyRes.statusCode);
+        console.log('[PROXY] Raw:', data.substring(0, 200));
         try {
           res.status(proxyRes.statusCode).json(JSON.parse(data));
-        } catch (e) {
-          console.log('[PROXY] JSON parse failed:', e.message);
-          console.log('[PROXY] Raw response (first 500 chars):', data.substring(0, 500));
+        } catch(e) {
           res.status(500).json({ error: 'Backend error', raw: data.substring(0, 200) });
         }
         resolve();
