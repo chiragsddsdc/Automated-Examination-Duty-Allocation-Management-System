@@ -1,15 +1,20 @@
 const httpModule = require('https');
 
 export default async function handler(req, res) {
-  const pathParts = req.query.path || [];
-  const path = Array.isArray(pathParts) ? pathParts.join('/') : pathParts;
+  const pathSegments = Array.isArray(req.query.path)
+    ? req.query.path
+    : req.query.path ? [req.query.path] : [];
+  const filePath = pathSegments.join('/');
 
   const params = new URLSearchParams();
   Object.entries(req.query).forEach(([key, val]) => {
-    if (key !== 'path') params.append(key, val);
+    if (key === 'path') return;
+    if (Array.isArray(val)) val.forEach(v => params.append(key, v));
+    else params.append(key, val);
   });
 
-  const targetUrl = `https://midnightblue-woodcock-705637.hostingersite.com/backend/api/${path}?${params.toString()}`;
+  const queryStr = params.toString();
+  const targetUrl = `https://midnightblue-woodcock-705637.hostingersite.com/backend/api/${filePath}${queryStr ? '?' + queryStr : ''}`;
 
   const body = req.method !== 'GET' && req.method !== 'HEAD'
     ? JSON.stringify(req.body)
