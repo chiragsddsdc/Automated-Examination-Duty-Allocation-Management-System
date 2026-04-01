@@ -15,6 +15,9 @@ export default async function handler(req, res) {
     ? JSON.stringify(req.body)
     : null;
 
+  console.log('[PROXY] →', req.method, targetUrl);
+  console.log('[PROXY] Request body:', body);
+
   const options = {
     method: req.method,
     headers: {
@@ -29,7 +32,14 @@ export default async function handler(req, res) {
       let data = '';
       proxyRes.on('data', chunk => data += chunk);
       proxyRes.on('end', () => {
-        res.status(proxyRes.statusCode).json(JSON.parse(data));
+        console.log('[PROXY] Response status:', proxyRes.statusCode);
+        console.log('[PROXY] Raw response:', data);
+        try {
+          res.status(proxyRes.statusCode).json(JSON.parse(data));
+        } catch (e) {
+          console.log('[PROXY] JSON parse failed:', e.message);
+          res.status(500).json({ error: 'Invalid JSON from backend', raw: data });
+        }
         resolve();
       });
     });
