@@ -1,4 +1,4 @@
-const httpModule = require('http');
+const httpModule = require('https');
 
 export default async function handler(req, res) {
   const pathParts = req.query.path || [];
@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     if (key !== 'path') params.append(key, val);
   });
 
-  const targetUrl = `http://midnightblue-woodcock-705637.hostingersite.com/backend/api/${path}?${params.toString()}`;
+  const targetUrl = `https://midnightblue-woodcock-705637.hostingersite.com/backend/api/${path}?${params.toString()}`;
 
   const body = req.method !== 'GET' && req.method !== 'HEAD'
     ? JSON.stringify(req.body)
