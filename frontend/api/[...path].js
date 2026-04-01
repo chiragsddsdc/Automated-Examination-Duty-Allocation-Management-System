@@ -1,3 +1,8 @@
+// NOTE: This file is a Vercel serverless proxy for PRODUCTION deployment only.
+// It is NOT needed for local development (localhost with XAMPP/WAMP).
+// When running locally, requests go directly to http://localhost/exam-duty/backend/api
+// and this file is ignored entirely.
+
 const https = require('https');
 
 export default async function handler(req, res) {

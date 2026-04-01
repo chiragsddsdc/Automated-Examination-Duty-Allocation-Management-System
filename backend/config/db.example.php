@@ -1,9 +1,11 @@
 <?php
 // backend/config/db.php
-define('DB_HOST', 'midnightblue-woodcock-705637.hostingersite.com');
-define('DB_USER', 'u915208031_examduty');
-define('DB_PASS', 'wlbeqOCX;tho|gO0');
-define('DB_NAME', 'u915208031_examduty');
+// Copy this file to db.php and update credentials for your environment.
+// For local development (XAMPP/WAMP), the defaults below work out of the box.
+define('DB_HOST', 'localhost');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'exam_duty_db');
 
 function getDB() {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);

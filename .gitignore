@@ -1,4 +1,6 @@
-node_modules/ 
-.env 
-.claude/ 
-backend/vendor/ 
+node_modules/
+.env
+.claude/
+backend/vendor/
+backend/config/db.php
+
