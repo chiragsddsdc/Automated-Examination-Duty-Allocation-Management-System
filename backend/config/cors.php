@@ -1,6 +1,6 @@
 <?php
 // backend/config/cors.php
-header('Access-Control-Allow-Origin: http://localhost:3000');
+header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Auth-Token');
 header('Access-Control-Allow-Credentials: true');
@@ -26,12 +26,19 @@ function getBody() {
 }
 
 function getAuthToken() {
-    $headers = getallheaders();
-    if (!empty($headers['Authorization'])) {
-        return str_replace('Bearer ', '', $headers['Authorization']);
+    $auth = '';
+    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $auth = $_SERVER['HTTP_AUTHORIZATION'];
+    } elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        $auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+    } elseif (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (!empty($headers['Authorization'])) {
+            $auth = $headers['Authorization'];
+        }
     }
-    if (!empty($headers['X-Auth-Token'])) {
-        return $headers['X-Auth-Token'];
+    if ($auth) {
+        return str_replace('Bearer ', '', $auth);
     }
     if (!empty($_GET['token'])) {
         return $_GET['token'];
@@ -46,7 +53,7 @@ function requireAuth() {
         respondError('Unauthorized - No token', 401);
     }
     $db = getDB();
-    $stmt = $db->prepare('SELECT u.id, u.name, u.role, u.email, fp.id as faculty_profile_id 
+    $stmt = $db->prepare('SELECT u.id, u.name, u.role, u.email, fp.id as faculty_profile_id
                           FROM auth_tokens t
                           JOIN users u ON u.id = t.user_id
                           LEFT JOIN faculty_profiles fp ON fp.user_id = u.id

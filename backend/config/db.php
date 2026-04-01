@@ -1,9 +1,9 @@
 <?php
 // backend/config/db.php
-define('DB_HOST', 'sql303.infinityfree.com');
-define('DB_USER', 'if0_41548694');
-define('DB_PASS', 'c036UXcqUv2e');
-define('DB_NAME', 'if0_41548694_examduty');
+define('DB_HOST', 'midnightblue-woodcock-705637.hostingersite.com');
+define('DB_USER', 'u915208031_examduty');
+define('DB_PASS', 'wlbeqOCX;tho|gO0');
+define('DB_NAME', 'u915208031_examduty');
 
 function getDB() {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
