@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://examduty.infinityfreeapp.com/backend/api/:path*"
+      "destination": "/api/:path*"
     }
   ]
 }
