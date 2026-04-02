@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost/exam-duty/backend/api',
+  baseURL: '/api',
   withCredentials: true,
 });
 
